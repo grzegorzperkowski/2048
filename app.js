@@ -354,6 +354,37 @@
     }
   }
 
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+
+    // A subsequent controller means a newly installed worker has taken over.
+    // Reload once so an open tab immediately runs the matching app shell. Game
+    // progress is already saved in localStorage after every completed move.
+    const wasAlreadyControlled = navigator.serviceWorker.controller !== null;
+    let hasReloadedForUpdate = false;
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!wasAlreadyControlled || hasReloadedForUpdate) return;
+      hasReloadedForUpdate = true;
+      window.location.reload();
+    });
+
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./service-worker.js", {
+        scope: "./",
+        // Check the worker script itself against the server instead of an HTTP
+        // cache, so a deployed worker update is discovered promptly.
+        updateViaCache: "none",
+      }).then((registration) => {
+        // Browsers may throttle their automatic update checks. Request one on
+        // every app load; failures are harmless because the active app remains.
+        registration.update().catch(() => {});
+      }).catch(() => {
+        // The game continues normally when workers are unsupported or blocked.
+      });
+    }, { once: true });
+  }
+
   document.addEventListener("keydown", handleKeydown);
   elements.newGame.addEventListener("click", requestNewGame);
   elements.dialogNewGame.addEventListener("click", handleDialogNewGame);
@@ -375,4 +406,6 @@
   } else {
     startNewGame(false);
   }
+
+  registerServiceWorker();
 })();
