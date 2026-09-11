@@ -2,9 +2,11 @@
   "use strict";
 
   const BOARD_SIZE = 4;
-  const STORAGE_VERSION = 1;
+  const STORAGE_VERSION = 2;
+  const LEGACY_STORAGE_VERSION = 1;
   const GAME_STORAGE_KEY = "classic-2048-game";
   const BEST_STORAGE_KEY = "classic-2048-best";
+  const MAX_UNDO_HISTORY = 10;
   const TWO_TILE_PROBABILITY = 0.9;
   const SWIPE_THRESHOLD = 30;
   const WINNING_TILE = 2048;
@@ -24,11 +26,13 @@
     score: document.getElementById("score"),
     best: document.getElementById("best"),
     newGame: document.getElementById("new-game"),
+    undo: document.getElementById("undo"),
     dialog: document.getElementById("game-dialog"),
     dialogTitle: document.getElementById("dialog-title"),
     dialogDescription: document.getElementById("dialog-description"),
     keepPlaying: document.getElementById("keep-playing"),
     dialogNewGame: document.getElementById("dialog-new-game"),
+    dialogUndo: document.getElementById("dialog-undo"),
     announcements: document.getElementById("announcements"),
   };
 
@@ -38,6 +42,7 @@
     best: 0,
     hasWinShown: false,
     isGameOver: false,
+    undoHistory: [],
     dialogMode: null,
     touchStart: null,
   };
@@ -74,19 +79,56 @@
     return board.some((row) => row.some((value) => value >= WINNING_TILE));
   }
 
-  function isValidSavedGame(saved) {
-    if (!saved || saved.version !== STORAGE_VERSION) return false;
-    if (!Array.isArray(saved.board) || saved.board.length !== BOARD_SIZE) return false;
-    if (!saved.board.every((row) => (
+  function isValidBoard(board) {
+    return Array.isArray(board) && board.length === BOARD_SIZE && board.every((row) => (
       Array.isArray(row) && row.length === BOARD_SIZE && row.every(isValidTile)
-    ))) return false;
-    if (saved.board.flat().filter((value) => value !== 0).length < 2) return false;
-    if (!isValidScore(saved.score)) return false;
-    if (typeof saved.hasWinShown !== "boolean" || typeof saved.isGameOver !== "boolean") {
+    ));
+  }
+
+  function isValidGameState(game) {
+    if (!game || !isValidBoard(game.board)) return false;
+    if (game.board.flat().filter((value) => value !== 0).length < 2) return false;
+    if (!isValidScore(game.score)) return false;
+    if (typeof game.hasWinShown !== "boolean" || typeof game.isGameOver !== "boolean") {
       return false;
     }
-    return saved.isGameOver === !hasLegalMoves(saved.board) &&
-      saved.hasWinShown === hasWinningTile(saved.board);
+    return game.isGameOver === !hasLegalMoves(game.board) &&
+      game.hasWinShown === hasWinningTile(game.board);
+  }
+
+  function isValidUndoHistory(history) {
+    return Array.isArray(history) &&
+      history.length <= MAX_UNDO_HISTORY &&
+      history.every(isValidGameState);
+  }
+
+  function isValidSavedGame(saved) {
+    if (!saved || (saved.version !== STORAGE_VERSION && saved.version !== LEGACY_STORAGE_VERSION)) {
+      return false;
+    }
+    if (!isValidGameState(saved)) return false;
+    return saved.version === LEGACY_STORAGE_VERSION || isValidUndoHistory(saved.undoHistory);
+  }
+
+  function captureGameState() {
+    return {
+      board: state.board.map((row) => [...row]),
+      score: state.score,
+      hasWinShown: state.hasWinShown,
+      isGameOver: state.isGameOver,
+    };
+  }
+
+  function restoreGameState(game) {
+    state.board = game.board.map((row) => [...row]);
+    state.score = game.score;
+    state.hasWinShown = game.hasWinShown;
+    state.isGameOver = game.isGameOver;
+  }
+
+  function saveUndoState() {
+    state.undoHistory.push(captureGameState());
+    if (state.undoHistory.length > MAX_UNDO_HISTORY) state.undoHistory.shift();
   }
 
   function restoreGame() {
@@ -103,11 +145,14 @@
     try {
       const saved = JSON.parse(window.localStorage.getItem(GAME_STORAGE_KEY));
       if (!isValidSavedGame(saved)) return false;
-      state.board = saved.board;
-      state.score = saved.score;
+      restoreGameState(saved);
       state.best = Math.max(state.best, state.score);
-      state.hasWinShown = saved.hasWinShown;
-      state.isGameOver = saved.isGameOver;
+      state.undoHistory = saved.version === STORAGE_VERSION
+        ? saved.undoHistory.map((game) => ({
+          ...game,
+          board: game.board.map((row) => [...row]),
+        }))
+        : [];
       return true;
     } catch {
       return false;
@@ -127,6 +172,7 @@
         score: state.score,
         hasWinShown: state.hasWinShown,
         isGameOver: state.isGameOver,
+        undoHistory: state.undoHistory,
       }));
     } catch {
       // Keep the current game in memory if storage is full or blocked.
@@ -230,6 +276,9 @@
     elements.board.replaceChildren(fragment);
     elements.score.textContent = formatNumber(state.score);
     elements.best.textContent = formatNumber(state.best);
+    const canUndo = state.undoHistory.length > 0;
+    elements.undo.disabled = !canUndo;
+    elements.dialogUndo.hidden = !canUndo;
   }
 
   function showDialog(mode) {
@@ -270,6 +319,7 @@
     const result = calculateMove(direction);
     if (!result.changed) return;
 
+    saveUndoState();
     state.board = result.board;
     state.score += result.score;
     state.best = Math.max(state.best, state.score);
@@ -290,12 +340,25 @@
     }
   }
 
+  function undoMove() {
+    if (state.undoHistory.length === 0) return;
+    closeDialog();
+    restoreGameState(state.undoHistory.pop());
+    state.best = Math.max(state.best, state.score);
+    state.touchStart = null;
+    saveGame();
+    renderBoard();
+    announce(`Move undone. Score ${formatNumber(state.score)}.`);
+    elements.board.focus({ preventScroll: true });
+  }
+
   function startNewGame(focusBoard = true) {
     closeDialog();
     state.board = createEmptyBoard();
     state.score = 0;
     state.hasWinShown = false;
     state.isGameOver = false;
+    state.undoHistory = [];
     state.touchStart = null;
     addRandomTile();
     addRandomTile();
@@ -387,7 +450,9 @@
 
   document.addEventListener("keydown", handleKeydown);
   elements.newGame.addEventListener("click", requestNewGame);
+  elements.undo.addEventListener("click", undoMove);
   elements.dialogNewGame.addEventListener("click", handleDialogNewGame);
+  elements.dialogUndo.addEventListener("click", undoMove);
   elements.keepPlaying.addEventListener("click", keepPlaying);
   elements.dialog.addEventListener("cancel", (event) => {
     event.preventDefault();

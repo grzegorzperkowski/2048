@@ -134,6 +134,12 @@ h1 {
   line-height: 1.6;
 }
 
+.game-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-small);
+}
+
 .button {
   display: inline-flex;
   min-height: 2.75rem;
@@ -173,6 +179,12 @@ h1 {
 
 .button:active {
   background: var(--color-focus);
+}
+
+.button:disabled {
+  background: #cfc4b7;
+  color: #82776c;
+  cursor: not-allowed;
 }
 
 .game-area {
