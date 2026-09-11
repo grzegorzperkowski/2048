@@ -6,7 +6,7 @@
   const LEGACY_STORAGE_VERSION = 1;
   const GAME_STORAGE_KEY = "classic-2048-game";
   const BEST_STORAGE_KEY = "classic-2048-best";
-  const MAX_UNDO_HISTORY = 10;
+  const MAX_UNDO_HISTORY = 100;
   const TWO_TILE_PROBABILITY = 0.9;
   const SWIPE_THRESHOLD = 30;
   const WINNING_TILE = 2048;
