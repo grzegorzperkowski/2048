@@ -3,9 +3,24 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta id="theme-color" name="theme-color" content="#faf8ef">
     <meta name="description" content="Play classic 2048. Slide and merge matching tiles to reach 2048, with keyboard or touch controls.">
     <title>2048</title>
     <link rel="icon" href="data:,">
+    <script>
+      (() => {
+        let mode = "auto";
+        try {
+          const saved = localStorage.getItem("classic-2048-theme");
+          if (["auto", "light", "dark"].includes(saved)) mode = saved;
+        } catch { /* Theme storage is optional. */ }
+        const theme = mode === "auto"
+          ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : mode;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.themeMode = mode;
+      })();
+    </script>
     <link rel="stylesheet" href="styles.css">
     <script src="app.js" defer></script>
   </head>
@@ -13,14 +28,21 @@
     <main class="game-shell">
       <header class="game-header">
         <h1>2048</h1>
-        <div class="scoreboard" aria-label="Game scores">
-          <div class="score-card">
-            <span class="score-label" id="score-label">Score</span>
-            <span class="score-value" id="score" aria-labelledby="score-label">0</span>
-          </div>
-          <div class="score-card">
-            <span class="score-label" id="best-label">Best</span>
-            <span class="score-value" id="best" aria-labelledby="best-label">0</span>
+        <div class="game-header-controls">
+          <button id="theme-toggle" class="theme-toggle" type="button" role="switch" aria-label="Dark theme" aria-checked="false" title="Switch to dark theme">
+            <span class="theme-sun" aria-hidden="true">☀</span>
+            <span class="theme-track" aria-hidden="true"><span></span></span>
+            <span class="theme-moon" aria-hidden="true">☾</span>
+          </button>
+          <div class="scoreboard" aria-label="Game scores">
+            <div class="score-card">
+              <span class="score-label" id="score-label">Score</span>
+              <span class="score-value" id="score" aria-labelledby="score-label">0</span>
+            </div>
+            <div class="score-card">
+              <span class="score-label" id="best-label">Best</span>
+              <span class="score-value" id="best" aria-labelledby="best-label">0</span>
+            </div>
           </div>
         </div>
       </header>

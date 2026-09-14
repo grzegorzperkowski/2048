@@ -6,6 +6,7 @@
   const LEGACY_STORAGE_VERSION = 1;
   const GAME_STORAGE_KEY = "classic-2048-game";
   const BEST_STORAGE_KEY = "classic-2048-best";
+  const THEME_STORAGE_KEY = "classic-2048-theme";
   const MAX_UNDO_HISTORY = 100;
   const TWO_TILE_PROBABILITY = 0.9;
   const SWIPE_THRESHOLD = 30;
@@ -34,7 +35,38 @@
     dialogNewGame: document.getElementById("dialog-new-game"),
     dialogUndo: document.getElementById("dialog-undo"),
     announcements: document.getElementById("announcements"),
+    themeToggle: document.getElementById("theme-toggle"),
+    themeColor: document.getElementById("theme-color"),
   };
+
+  const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function readTheme() {
+    try {
+      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+      return ["auto", "light", "dark"].includes(saved) ? saved : "auto";
+    } catch {
+      return "auto";
+    }
+  }
+
+  function applyTheme(mode, persist = false) {
+    const resolved = mode === "auto" ? (colorScheme.matches ? "dark" : "light") : mode;
+    const next = resolved === "dark" ? "light" : "dark";
+    const actionLabel = `Switch to ${next} theme`;
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.dataset.themeMode = mode;
+    elements.themeToggle.setAttribute("aria-checked", String(resolved === "dark"));
+    elements.themeToggle.title = actionLabel;
+    elements.themeColor.content = resolved === "dark" ? "#1b1815" : "#faf8ef";
+    if (persist) {
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+      } catch {
+        // Theme switching still works when storage is unavailable.
+      }
+    }
+  }
 
   const state = {
     board: createEmptyBoard(),
@@ -454,6 +486,14 @@
   elements.dialogNewGame.addEventListener("click", handleDialogNewGame);
   elements.dialogUndo.addEventListener("click", undoMove);
   elements.keepPlaying.addEventListener("click", keepPlaying);
+  elements.themeToggle.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(next, true);
+    announce(`${next === "dark" ? "Dark" : "Light"} theme enabled.`);
+  });
+  colorScheme.addEventListener("change", () => {
+    if (document.documentElement.dataset.themeMode === "auto") applyTheme("auto");
+  });
   elements.dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
     keepPlaying();
@@ -462,6 +502,8 @@
   elements.board.addEventListener("touchmove", handleTouchMove, { passive: false });
   elements.board.addEventListener("touchend", handleTouchEnd, { passive: true });
   elements.board.addEventListener("touchcancel", () => { state.touchStart = null; }, { passive: true });
+
+  applyTheme(readTheme());
 
   if (restoreGame()) {
     renderBoard();
