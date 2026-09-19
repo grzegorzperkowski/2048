@@ -628,3 +628,6 @@ kbd {
     scroll-behavior: auto !important;
   }
 }
+
+.playground-link { margin-top: 2rem; text-align: center; font-size: .9rem; }
+.playground-link a { color: inherit; }

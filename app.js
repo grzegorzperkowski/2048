@@ -6,6 +6,7 @@
   const LEGACY_STORAGE_VERSION = 1;
   const GAME_STORAGE_KEY = "classic-2048-game";
   const BEST_STORAGE_KEY = "classic-2048-best";
+  const RESULT_STORAGE_KEY = "playground.result.2048.v1";
   const THEME_STORAGE_KEY = "classic-2048-theme";
   const MAX_UNDO_HISTORY = 100;
   const TWO_TILE_PROBABILITY = 0.9;
@@ -211,6 +212,19 @@
     }
   }
 
+  function saveCompletedResult(kind) {
+    try {
+      const previous = JSON.parse(window.localStorage.getItem(RESULT_STORAGE_KEY));
+      const stats = previous?.version === 1 && previous.app === "2048" && previous.stats && typeof previous.stats === "object" ? previous.stats : {};
+      const highestTile = Math.max(Number(stats.highestTile) || 0, ...state.board.flat());
+      window.localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify({
+        version: 1, app: "2048", updatedAt: Date.now(),
+        summary: { primary: `Best: ${formatNumber(state.best)}`, secondary: `Highest tile: ${formatNumber(highestTile)}` },
+        stats: { bestScore: state.best, highestTile, last: { kind, score: state.score, completedAt: Date.now() } }
+      }));
+    } catch { /* Results are optional when storage is unavailable. */ }
+  }
+
   function addRandomTile() {
     const emptyCells = [];
     for (let row = 0; row < BOARD_SIZE; row += 1) {
@@ -363,8 +377,10 @@
     renderBoard(result.mergedCells, spawnedCell);
 
     if (justWon) {
+      saveCompletedResult("won");
       showDialog("win");
     } else if (state.isGameOver) {
+      saveCompletedResult("game-over");
       showDialog("over");
     } else {
       const gainMessage = result.score > 0 ? ` Gained ${formatNumber(result.score)} points.` : "";
@@ -449,37 +465,6 @@
     }
   }
 
-  function registerServiceWorker() {
-    if (!("serviceWorker" in navigator)) return;
-
-    // A subsequent controller means a newly installed worker has taken over.
-    // Reload once so an open tab immediately runs the matching app shell. Game
-    // progress is already saved in localStorage after every completed move.
-    const wasAlreadyControlled = navigator.serviceWorker.controller !== null;
-    let hasReloadedForUpdate = false;
-
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!wasAlreadyControlled || hasReloadedForUpdate) return;
-      hasReloadedForUpdate = true;
-      window.location.reload();
-    });
-
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js", {
-        scope: "./",
-        // Check the worker script itself against the server instead of an HTTP
-        // cache, so a deployed worker update is discovered promptly.
-        updateViaCache: "none",
-      }).then((registration) => {
-        // Browsers may throttle their automatic update checks. Request one on
-        // every app load; failures are harmless because the active app remains.
-        registration.update().catch(() => {});
-      }).catch(() => {
-        // The game continues normally when workers are unsupported or blocked.
-      });
-    }, { once: true });
-  }
-
   document.addEventListener("keydown", handleKeydown);
   elements.newGame.addEventListener("click", requestNewGame);
   elements.undo.addEventListener("click", undoMove);
@@ -514,5 +499,4 @@
     startNewGame(false);
   }
 
-  registerServiceWorker();
 })();

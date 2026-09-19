@@ -6,7 +6,9 @@
     <meta id="theme-color" name="theme-color" content="#faf8ef">
     <meta name="description" content="Play classic 2048. Slide and merge matching tiles to reach 2048, with keyboard or touch controls.">
     <title>2048</title>
-    <link rel="icon" href="data:,">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="assets/icons/icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
     <script>
       (() => {
         let mode = "auto";
@@ -23,6 +25,7 @@
     </script>
     <link rel="stylesheet" href="styles.css">
     <script src="app.js" defer></script>
+    <script src="pwa-register.js" data-pwa-register defer></script>
   </head>
   <body>
     <main class="game-shell">
@@ -68,6 +71,7 @@
 
       <noscript><p>Enable JavaScript in your browser to play 2048.</p></noscript>
       <p class="sr-only" id="announcements" role="status" aria-live="polite" aria-atomic="true"></p>
+      <footer class="playground-link"><a href="/mygame/">More games in Playground</a></footer>
     </main>
 
     <dialog class="game-dialog" id="game-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description">
