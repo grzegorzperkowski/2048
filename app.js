@@ -35,6 +35,7 @@
     keepPlaying: document.getElementById("keep-playing"),
     dialogNewGame: document.getElementById("dialog-new-game"),
     dialogUndo: document.getElementById("dialog-undo"),
+    dialogCancel: document.getElementById("dialog-cancel"),
     announcements: document.getElementById("announcements"),
     themeToggle: document.getElementById("theme-toggle"),
     themeColor: document.getElementById("theme-color"),
@@ -77,6 +78,7 @@
     isGameOver: false,
     undoHistory: [],
     dialogMode: null,
+    dialogReturnMode: null,
     touchStart: null,
   };
 
@@ -324,29 +326,71 @@
     elements.best.textContent = formatNumber(state.best);
     const canUndo = state.undoHistory.length > 0;
     elements.undo.disabled = !canUndo;
-    elements.dialogUndo.hidden = !canUndo;
+    elements.dialogUndo.hidden = !canUndo || state.dialogMode === "confirm";
+  }
+
+  function hasProgressToLose() {
+    return state.undoHistory.length > 0 || state.score > 0 || state.hasWinShown || state.isGameOver;
   }
 
   function showDialog(mode) {
+    const won = mode === "win";
+    const isConfirm = mode === "confirm";
+    const canUndo = state.undoHistory.length > 0;
+
     state.dialogMode = mode;
     state.touchStart = null;
-    const won = mode === "win";
-    elements.dialogTitle.textContent = won ? "You win!" : "Game over";
-    elements.dialogDescription.textContent = won
-      ? "You made a 2048 tile! Keep playing to reach a higher tile."
-      : `No moves left. You scored ${formatNumber(state.score)} points.`;
-    elements.keepPlaying.hidden = !won;
-    elements.dialogNewGame.textContent = won ? "New Game" : "Try Again";
-    elements.dialog.showModal();
-    (won ? elements.keepPlaying : elements.dialogNewGame).focus();
-    announce(won
-      ? `You reached 2048! Score ${formatNumber(state.score)}. Keep playing or start a new game.`
-      : `Game over. No moves left. Final score ${formatNumber(state.score)}. Try again to start a new game.`);
+    elements.dialog.dataset.mode = mode;
+    elements.dialog.setAttribute("role", isConfirm ? "alertdialog" : "dialog");
+
+    if (isConfirm) {
+      elements.dialogTitle.textContent = "Start a new game?";
+      elements.dialogDescription.textContent = "Your current progress will be lost.";
+      elements.keepPlaying.hidden = true;
+      elements.dialogUndo.hidden = true;
+      elements.dialogCancel.hidden = false;
+      elements.dialogNewGame.textContent = "New Game";
+      elements.dialogNewGame.classList.remove("button-secondary");
+    } else {
+      elements.dialogTitle.textContent = won ? "You win!" : "Game over";
+      elements.dialogDescription.textContent = won
+        ? "You made a 2048 tile! Keep playing to reach a higher tile."
+        : `No moves left. You scored ${formatNumber(state.score)} points.`;
+      elements.keepPlaying.hidden = !won;
+      elements.dialogUndo.hidden = !canUndo;
+      elements.dialogCancel.hidden = true;
+      elements.dialogNewGame.textContent = won ? "New Game" : "Try Again";
+      elements.dialogNewGame.classList.add("button-secondary");
+    }
+
+    if (!elements.dialog.open) elements.dialog.showModal();
+    (isConfirm ? elements.dialogCancel : won ? elements.keepPlaying : elements.dialogNewGame).focus();
+    announce(isConfirm
+      ? "Start a new game? Your current progress will be lost. Cancel to keep this game, or choose New Game to start over."
+      : won
+        ? `You reached 2048! Score ${formatNumber(state.score)}. Keep playing or start a new game.`
+        : `Game over. No moves left. Final score ${formatNumber(state.score)}. Try again to start a new game.`);
   }
 
   function closeDialog() {
     if (elements.dialog.open) elements.dialog.close();
     state.dialogMode = null;
+    state.dialogReturnMode = null;
+    delete elements.dialog.dataset.mode;
+    elements.dialog.setAttribute("role", "dialog");
+  }
+
+  function cancelNewGameConfirm() {
+    if (state.dialogMode !== "confirm") return;
+    const returnMode = state.dialogReturnMode;
+    state.dialogReturnMode = null;
+    if (returnMode === "win" || returnMode === "over") {
+      showDialog(returnMode);
+      return;
+    }
+    closeDialog();
+    elements.board.focus({ preventScroll: true });
+    announce(`New game cancelled. Score ${formatNumber(state.score)}.`);
   }
 
   function keepPlaying() {
@@ -417,12 +461,19 @@
   }
 
   function requestNewGame() {
-    if (!window.confirm("Start a new game? Your current progress will be lost.")) return;
-    startNewGame();
+    if (state.dialogMode === "confirm") return;
+    if (!hasProgressToLose()) {
+      startNewGame();
+      return;
+    }
+    state.dialogReturnMode = state.dialogMode === "win" || state.dialogMode === "over"
+      ? state.dialogMode
+      : null;
+    showDialog("confirm");
   }
 
   function handleDialogNewGame() {
-    if (state.dialogMode === "over") {
+    if (state.dialogMode === "over" || state.dialogMode === "confirm") {
       startNewGame();
     } else {
       requestNewGame();
@@ -470,6 +521,7 @@
   elements.undo.addEventListener("click", undoMove);
   elements.dialogNewGame.addEventListener("click", handleDialogNewGame);
   elements.dialogUndo.addEventListener("click", undoMove);
+  elements.dialogCancel.addEventListener("click", cancelNewGameConfirm);
   elements.keepPlaying.addEventListener("click", keepPlaying);
   elements.themeToggle.addEventListener("click", () => {
     const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
@@ -481,6 +533,10 @@
   });
   elements.dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
+    if (state.dialogMode === "confirm") {
+      cancelNewGameConfirm();
+      return;
+    }
     keepPlaying();
   });
   elements.board.addEventListener("touchstart", handleTouchStart, { passive: true });

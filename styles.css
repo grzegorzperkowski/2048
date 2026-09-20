@@ -500,6 +500,10 @@ kbd {
   letter-spacing: -0.04em;
 }
 
+.game-dialog[data-mode="confirm"] h2 {
+  font-size: clamp(1.5rem, 6vw, 1.85rem);
+}
+
 .game-dialog p {
   margin: 0;
   line-height: 1.65;
@@ -507,6 +511,7 @@ kbd {
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-small);
   margin-top: var(--space-large);
